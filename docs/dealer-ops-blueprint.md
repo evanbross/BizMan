@@ -1,5 +1,6 @@
 # Dealer Ops Blueprint
 
+
 Feature spec for an original equipment-dealer management platform, scoped from public
 marketing pages of an existing commercial product (Ideal Computer Systems /
 idealcomputersystems.com) — what the category of software does, not how any specific

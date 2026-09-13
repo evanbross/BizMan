@@ -7,19 +7,95 @@ At the start of every session, re-read this file and each standards file below b
 - `../Dev-Standards/COMMON_CODING_STANDARDS.md`
 - `../Dev-Standards/PYTHON_STANDARDS.md`
 - `../Dev-Standards/DATABASE_STANDARDS.md`
+- `../Dev-Standards/FASTAPI_STANDARDS.md`
+- `../Dev-Standards/JAVASCRIPT_TYPESCRIPT_STANDARDS.md`
+- `../Dev-Standards/REACT_STANDARDS.md`
+- `../Dev-Standards/TESTING_STANDARDS.md`
+
+`../Dev-Standards/INFRASTRUCTURE_STANDARDS.md` applies once Docker/CI work starts — deliberately
+deferred past Phase 1, see below.
+
+## File Headers
+
+BizMan is a commercial ZombieTech LLC product (multi-tenant SaaS), not personal/non-commercial use.
+Every new source file uses the **proprietary** header templates, not the Dev-Standards defaults:
+
+- Python: `../Dev-Standards/Headers/FileHeader_Python_Proprietary.txt`
+- JavaScript/TypeScript: `../Dev-Standards/Headers/FileHeader_JS_Proprietary.txt`
 
 ---
 
 ## Project Overview
 
-Business management platform for equipment dealers (initial focus: Outdoor Power
-Equipment), covering inventory, sales/invoicing, service work orders, customer
-management, and reporting. Functional scope was researched from a competitor's public
-marketing pages only — see `docs/dealer-ops-blueprint.md` for the full spec, module
-catalog, and Phase 1 build scope. No code, text, or design from any competitor product
-is to be reused; see that doc's "Legal boundary" section before implementing.
+Multi-tenant equipment-dealer management platform (initial vertical: Outdoor Power Equipment) —
+inventory, sales/invoicing, service work orders, customer management, and reporting. Functional scope
+was researched from a competitor's public marketing pages only — see `docs/dealer-ops-blueprint.md`
+for the full spec, module catalog, and Phase 1 build scope. No code, text, or design from any
+competitor product is to be reused; see that doc's "Legal boundary" section before implementing.
 
-Early-stage Python project (requires Python >=3.14, no dependencies or framework chosen
-yet). Update this section — and the standards list above — once the stack (web framework,
-database engine, frontend, etc.) is decided; see `../Dev-Standards/README.md` for which
-additional standards files to pull in as the project grows.
+**Stack:** Python/FastAPI backend, React/TypeScript (Vite) frontend, Supabase (managed Postgres +
+Auth). Multi-tenant from day one — every table carries `tenant_id`. **All data access goes through
+the FastAPI backend**; the frontend never calls Supabase directly for CRUD. Row Level Security is
+enabled on every table as a defense-in-depth backstop, but the backend connects with the Supabase
+service-role key, so RLS is not the primary enforcement path — see `backend/app/repositories/base.py`
+(`TenantScopedRepository`) and `backend/app/core/dependencies.py` for the actual enforcement
+mechanism once they exist.
+
+### Repo layout
+
+```
+backend/app/          FastAPI app: core/ (config, db, auth, tenant-context deps), models/, schemas/,
+                       repositories/ (tenant-scoped data access), services/ (business logic),
+                       routers/ (thin, no raw queries)
+backend/alembic/       Migrations — the only schema-change tool (not Supabase's own migration CLI)
+backend/tests/         pytest; integration/ (real local-Postgres DB), unit/
+frontend/src/          React/Vite/TS; api/ (typed client, only place that calls fetch),
+                       types/api.d.ts (generated from backend OpenAPI, never hand-duplicated)
+supabase/              Supabase CLI local-stack config (`npx supabase start`)
+docs/dealer-ops-blueprint.md   Authoritative Phase 1 feature spec
+```
+
+### Local dev
+
+All commands below run from the repo root.
+
+- `npx supabase start` — local Postgres + Auth via the Supabase CLI's own Docker stack (required
+  because `memberships.user_id` FKs `auth.users`, which only exists on Supabase-provisioned Postgres).
+  `npx supabase status` prints the local URL/keys needed for `backend/.env` (copy from
+  `backend/.env.example`).
+- `uv run alembic upgrade head` — apply migrations.
+- `uv run uvicorn app.main:app --reload --app-dir backend --host 0.0.0.0 --port 8000` — backend.
+  (`--app-dir backend` makes the `app` package importable; there's no root-level `app` directory.
+  `--port 8000` must match `Settings.port` in `core/config.py` — it's what the app registers with
+  Caddy. `--host 0.0.0.0`, not `127.0.0.1`: Caddy runs in Docker and reaches host processes via
+  `host.docker.internal`, which doesn't arrive on loopback.)
+- `npm run dev --prefix frontend` — frontend. Once the frontend exists, its Vite dev server also
+  needs `host: '0.0.0.0'` in `vite.config.ts` for the same Docker-reachability reason, and the Caddy
+  registration in `backend/app/core/caddy.py` should move from a single whole-host route to a
+  path-based split (`/api/*` -> backend, `/*` -> frontend) — see the docstring in
+  `../infra/caddy_registry.py` (`register_route()`) for the pattern.
+- `uv run pytest` — backend tests (`pythonpath = ["backend"]` in `pyproject.toml` makes `app`
+  importable for tests the same way).
+
+No Dockerfile/compose/CI yet for BizMan's own services — deliberately deferred until cloud deployment
+is actually being scheduled (see the approved Phase 1 plan for reasoning).
+
+### Local Caddy registration
+
+The backend self-registers with the shared local Caddy proxy (`F:\Evan-F\Projects\infra`) on
+startup via `backend/app/core/caddy.py`, making it reachable at **http://bizman.localhost** instead
+of a raw port — matches the pattern used by sibling local projects (see
+`../infra/caddy_registry.py`). Best-effort only: if `../infra` isn't checked out or its Caddy
+container isn't running, the app logs a warning and still works fine at `http://127.0.0.1:8000`.
+Start the shared stack with `cd ../infra && docker-compose up -d` if needed.
+
+### Key patterns to preserve
+
+- **Tenant isolation is structural, not conventional.** Routers never construct a repository or hold
+  a raw DB session directly — they only receive tenant-bound repositories via FastAPI
+  `Depends(get_<entity>_repo)`. Every repository requires `tenant_id` in its constructor and filters
+  every query through one shared base method. Don't add a code path that queries the DB any other way.
+- **Inventory/status changes that can race** (parts `qty_on_hand` decrement, a unit's `status` flip to
+  `sold`) are single-statement conditional `UPDATE ... WHERE ... RETURNING`, never SELECT-then-write.
+- **Alembic owns all schema changes**, including RLS policy DDL — never use Supabase's own migration
+  CLI on this project, to avoid two migration systems drifting apart.
