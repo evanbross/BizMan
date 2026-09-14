@@ -74,8 +74,12 @@ All commands below run from the repo root.
   registration in `backend/app/core/caddy.py` should move from a single whole-host route to a
   path-based split (`/api/*` -> backend, `/*` -> frontend) — see the docstring in
   `../infra/caddy_registry.py` (`register_route()`) for the pattern.
-- `uv run pytest` — backend tests (`pythonpath = ["backend"]` in `pyproject.toml` makes `app`
-  importable for tests the same way).
+- `uv run pytest` — backend tests. Requires the local Supabase stack running (`npx supabase
+  start`) - `backend/tests/conftest.py` auto-creates a sibling `<db>_test` database on that same
+  Postgres instance (stubbing just enough of Supabase's `auth` schema for the Membership FK/RLS
+  policies), runs `alembic upgrade head` against it, and wraps each test in a transaction that's
+  rolled back at teardown - the dev database is never touched. (`pythonpath = ["backend"]` in
+  `pyproject.toml` makes `app` importable for tests the same way.)
 
 No Dockerfile/compose/CI yet for BizMan's own services — deliberately deferred until cloud deployment
 is actually being scheduled (see the approved Phase 1 plan for reasoning).

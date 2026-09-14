@@ -25,6 +25,14 @@ from fastapi import FastAPI
 
 from app.core.caddy import deregister_from_caddy, register_with_caddy
 from app.core.logging_config import configure_logging
+from app.routers import (
+    customer_router,
+    invoice_router,
+    location_router,
+    part_router,
+    unit_router,
+    work_order_router,
+)
 
 configure_logging()
 
@@ -40,9 +48,14 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
 # ai: claude-sonnet-5 | 2026-09-12
 app = FastAPI(title="BizMan API", version="0.1.0", lifespan=lifespan)
 
-# Routers are registered here as each entity lands (Phase 1 build order stages 2-7).
 # Never import shared infra (db session factory, config, tenant-context deps) back from this
 # module inside a router — see PYTHON_STANDARDS.md "Circular Imports."
+app.include_router(location_router)
+app.include_router(customer_router)
+app.include_router(unit_router)
+app.include_router(part_router)
+app.include_router(invoice_router)
+app.include_router(work_order_router)
 
 
 @app.get("/health", tags=["system"])

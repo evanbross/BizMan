@@ -34,6 +34,12 @@ from app.repositories.membership import MembershipRepository
 from app.repositories.part import PartRepository
 from app.repositories.unit import UnitRepository
 from app.repositories.work_order import WorkOrderRepository
+from app.services.customer import CustomerService
+from app.services.invoice import InvoiceService
+from app.services.location import LocationService
+from app.services.part import PartService
+from app.services.unit import UnitService
+from app.services.work_order import WorkOrderService
 
 _bearer_scheme = HTTPBearer()
 
@@ -123,3 +129,54 @@ def get_work_order_repo(
     tenant_id: uuid.UUID = Depends(get_current_tenant_id),
 ) -> WorkOrderRepository:
     return WorkOrderRepository(session, tenant_id)
+
+
+# ai: claude-sonnet-5 | 2026-09-13
+def get_location_service(
+    repo: LocationRepository = Depends(get_location_repo),
+    session: AsyncSession = Depends(get_session),
+) -> LocationService:
+    return LocationService(repo, session)
+
+
+# ai: claude-sonnet-5 | 2026-09-13
+def get_customer_service(
+    repo: CustomerRepository = Depends(get_customer_repo),
+    session: AsyncSession = Depends(get_session),
+) -> CustomerService:
+    return CustomerService(repo, session)
+
+
+# ai: claude-sonnet-5 | 2026-09-13
+def get_unit_service(
+    repo: UnitRepository = Depends(get_unit_repo),
+    session: AsyncSession = Depends(get_session),
+) -> UnitService:
+    return UnitService(repo, session)
+
+
+# ai: claude-sonnet-5 | 2026-09-13
+def get_part_service(
+    repo: PartRepository = Depends(get_part_repo),
+    session: AsyncSession = Depends(get_session),
+) -> PartService:
+    return PartService(repo, session)
+
+
+# ai: claude-sonnet-5 | 2026-09-13
+def get_invoice_service(
+    repo: InvoiceRepository = Depends(get_invoice_repo),
+    unit_repo: UnitRepository = Depends(get_unit_repo),
+    part_repo: PartRepository = Depends(get_part_repo),
+    session: AsyncSession = Depends(get_session),
+) -> InvoiceService:
+    return InvoiceService(repo, unit_repo, part_repo, session)
+
+
+# ai: claude-sonnet-5 | 2026-09-13
+def get_work_order_service(
+    repo: WorkOrderRepository = Depends(get_work_order_repo),
+    part_repo: PartRepository = Depends(get_part_repo),
+    session: AsyncSession = Depends(get_session),
+) -> WorkOrderService:
+    return WorkOrderService(repo, part_repo, session)

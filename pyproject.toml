@@ -24,4 +24,11 @@ dev = [
 testpaths = ["backend/tests"]
 norecursedirs = ["frontend", ".venv", "node_modules", "supabase"]
 asyncio_mode = "auto"
+# Both session-scoped, and matching each other: the async `engine` fixture in
+# backend/tests/conftest.py is created once and reused across every test, so the test functions
+# themselves must run on that same loop too - fixture and test loops default independently, and
+# a fixture on the session loop with tests on the (default) per-function loop makes asyncpg's
+# connection get used from two different loops, which fails opaquely mid-query.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 pythonpath = ["backend"]

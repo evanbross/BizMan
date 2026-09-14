@@ -31,9 +31,9 @@ from app.models.base import Base, TenantScopedMixin
 # ai: claude-sonnet-5 | 2026-09-13
 class Part(TenantScopedMixin, Base):
     """Non-serialized, quantity-tracked inventory (docs/dealer-ops-blueprint.md). `qty_on_hand`
-    is only ever changed through PartRepository.adjust_stock's single-statement conditional
-    UPDATE - never read-modify-write - so concurrent sales/work-order consumption can't race
-    past zero. See AGENTS.md "Key patterns to preserve."
+    is only ever changed through PartRepository.decrement_stock/increment_stock's single-statement
+    conditional UPDATEs - never read-modify-write - so concurrent sales/work-order consumption
+    can't race past zero. See AGENTS.md "Key patterns to preserve."
     """
 
     __tablename__ = "parts"

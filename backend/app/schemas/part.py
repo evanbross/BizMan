@@ -22,7 +22,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ai: claude-sonnet-5 | 2026-09-13
@@ -72,4 +72,4 @@ class PartRead(BaseModel):
 class StockAdjustment(BaseModel):
     """Body for the increment/decrement-stock endpoints."""
 
-    quantity: int
+    quantity: int = Field(gt=0)

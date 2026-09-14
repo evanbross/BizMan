@@ -20,9 +20,9 @@
 
 import uuid
 from collections.abc import Sequence
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.base import TenantScopedMixin
@@ -60,3 +60,21 @@ class TenantScopedRepository(Generic[ModelT]):
         self._session.add(obj)
         await self._session.flush()
         return obj
+
+    # ai: claude-sonnet-5 | 2026-09-13
+    async def update(self, entity_id: uuid.UUID, values: dict[str, Any]) -> ModelT | None:
+        """Single-statement conditional UPDATE, not SELECT-then-write - consistent with the
+        counter/status-flip repositories (see PartRepository.decrement_stock, UnitRepository.
+        mark_sold) even though a plain field update has no lower-bound race to guard against.
+        Returns None if the row doesn't exist or isn't this tenant's.
+        """
+        if not values:
+            return await self.get(entity_id)
+        stmt = (
+            update(self.model)
+            .where(self.model.id == entity_id, self.model.tenant_id == self._tenant_id)
+            .values(**values)
+            .returning(self.model)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()

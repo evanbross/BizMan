@@ -21,7 +21,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import WorkOrderStatus
 
@@ -62,7 +62,7 @@ class WorkOrderRead(BaseModel):
 # ai: claude-sonnet-5 | 2026-09-13
 class WorkOrderPartCreate(BaseModel):
     part_id: uuid.UUID
-    quantity: int = 1
+    quantity: int = Field(default=1, gt=0)
 
 
 # ai: claude-sonnet-5 | 2026-09-13

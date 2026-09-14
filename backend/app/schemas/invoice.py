@@ -22,7 +22,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.enums import InvoiceStatus
 
@@ -60,7 +60,7 @@ class InvoiceLineCreate(BaseModel):
     unit_id: uuid.UUID | None = None
     part_id: uuid.UUID | None = None
     description: str
-    quantity: int = 1
+    quantity: int = Field(default=1, gt=0)
     unit_price: Decimal
 
     # ai: claude-sonnet-5 | 2026-09-13
