@@ -64,16 +64,16 @@ All commands below run from the repo root.
   `npx supabase status` prints the local URL/keys needed for `backend/.env` (copy from
   `backend/.env.example`).
 - `uv run alembic upgrade head` — apply migrations.
-- `uv run uvicorn app.main:app --reload --app-dir backend --host 0.0.0.0 --port 8000` — backend.
+- `uv run uvicorn app.main:app --reload --app-dir backend --host 0.0.0.0 --port 8610` — backend.
   (`--app-dir backend` makes the `app` package importable; there's no root-level `app` directory.
-  `--port 8000` must match `Settings.port` in `core/config.py` — it's what the app registers with
-  Caddy. `--host 0.0.0.0`, not `127.0.0.1`: Caddy runs in Docker and reaches host processes via
-  `host.docker.internal`, which doesn't arrive on loopback.)
-- `npm run dev --prefix frontend` — frontend. Once the frontend exists, its Vite dev server also
-  needs `host: '0.0.0.0'` in `vite.config.ts` for the same Docker-reachability reason, and the Caddy
-  registration in `backend/app/core/caddy.py` should move from a single whole-host route to a
-  path-based split (`/api/*` -> backend, `/*` -> frontend) — see the docstring in
-  `../infra/caddy_registry.py` (`register_route()`) for the pattern.
+  `--port 8610` must match `Settings.backend_port` in `core/config.py` — it's what the app
+  registers with Caddy. `--host 0.0.0.0`, not `127.0.0.1`: Caddy runs in Docker and reaches host
+  processes via `host.docker.internal`, which doesn't arrive on loopback.)
+- `npm run dev --prefix frontend -- --port 8611` — frontend, once it exists. `--port 8611` must
+  match `Settings.frontend_port` in `core/config.py` (`vite.config.ts` needs
+  `server: { host: '0.0.0.0', port: 8611 }`) — `core/caddy.py` registers both ports as one named
+  host with a path split; see "Local Caddy registration" below. `host: '0.0.0.0'`, not
+  `'127.0.0.1'`, for the same Docker-reachability reason as the backend.
 - `uv run pytest` — backend tests. Requires the local Supabase stack running (`npx supabase
   start`) - `backend/tests/conftest.py` auto-creates a sibling `<db>_test` database on that same
   Postgres instance (stubbing just enough of Supabase's `auth` schema for the Membership FK/RLS
@@ -87,11 +87,28 @@ is actually being scheduled (see the approved Phase 1 plan for reasoning).
 ### Local Caddy registration
 
 The backend self-registers with the shared local Caddy proxy (`F:\Evan-F\Projects\infra`) on
-startup via `backend/app/core/caddy.py`, making it reachable at **http://bizman.localhost** instead
-of a raw port — matches the pattern used by sibling local projects (see
-`../infra/caddy_registry.py`). Best-effort only: if `../infra` isn't checked out or its Caddy
-container isn't running, the app logs a warning and still works fine at `http://127.0.0.1:8000`.
-Start the shared stack with `cd ../infra && docker-compose up -d` if needed.
+startup via `backend/app/core/caddy.py`, giving the whole app one name — **http://bizman.localhost**
+— instead of a raw port, via a path-based split:
+
+- `http://bizman.localhost/api/*` → backend (`Settings.backend_port`, 8610). Every FastAPI route
+  lives under `/api` (see `main.py`) specifically so this split works — a route registered outside
+  `/api` would be unreachable through the named host, since only `/api/*` is routed to the backend.
+- `http://bizman.localhost/*` (everything else) → frontend dev server (`Settings.frontend_port`,
+  8611), once `frontend/` exists.
+
+Both routes are registered together from the backend's own startup (order matters — `/api/*` must
+be added before the catch-all, or the catch-all shadows it), matching the pattern used by sibling
+local projects (see `../infra/caddy_registry.py`'s `register_route()`). Best-effort only: if
+`../infra` isn't checked out or its Caddy container isn't running, the app logs a warning and still
+works fine at `http://127.0.0.1:8610` directly. Start the shared stack with
+`cd ../infra && docker-compose up -d` if needed.
+
+**Ports are fixed and named, not the frameworks' own defaults** (FastAPI/Uvicorn's 8000, Vite's
+5173) — those collide with other locally-running sibling projects on this machine. `backend_port`/
+`frontend_port` in `core/config.py` (8610/8611) are the single source of truth; the `--port` flags
+on the uvicorn/Vite commands above must match them. Before ever changing these, or picking a port
+for a *new* local project, check what's already claimed to avoid a repeat of this: grep sibling
+project `.env`/`.env.example`/`docker-compose.yml` files under `F:\Evan-F\Projects` for `PORT=`.
 
 ### Key patterns to preserve
 

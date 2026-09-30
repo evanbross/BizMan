@@ -21,7 +21,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 
 from app.core.caddy import deregister_from_caddy, register_with_caddy
 from app.core.logging_config import configure_logging
@@ -50,14 +50,19 @@ app = FastAPI(title="BizMan API", version="0.1.0", lifespan=lifespan)
 
 # Never import shared infra (db session factory, config, tenant-context deps) back from this
 # module inside a router — see PYTHON_STANDARDS.md "Circular Imports."
-app.include_router(location_router)
-app.include_router(customer_router)
-app.include_router(unit_router)
-app.include_router(part_router)
-app.include_router(invoice_router)
-app.include_router(work_order_router)
+# Every route lives under /api - core/caddy.py's Caddy registration routes bizman.localhost/api/*
+# to this backend and everything else to the (future) frontend dev server, so a route outside
+# /api would be unreachable through the named host once that split is in place.
+api_router = APIRouter(prefix="/api")
+api_router.include_router(location_router)
+api_router.include_router(customer_router)
+api_router.include_router(unit_router)
+api_router.include_router(part_router)
+api_router.include_router(invoice_router)
+api_router.include_router(work_order_router)
+app.include_router(api_router)
 
 
-@app.get("/health", tags=["system"])
+@app.get("/api/health", tags=["system"])
 async def health() -> dict[str, str]:
     return {"status": "ok"}

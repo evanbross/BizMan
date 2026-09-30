@@ -247,7 +247,9 @@ async def client(
     app.dependency_overrides[get_current_tenant_id] = _override_get_current_tenant_id
     try:
         transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as async_client:
+        # Every route lives under /api (see main.py) - base_url carries that prefix so test
+        # bodies can keep writing bare paths like "/locations" instead of "/api/locations".
+        async with AsyncClient(transport=transport, base_url="http://test/api") as async_client:
             yield async_client
     finally:
         app.dependency_overrides.clear()

@@ -27,6 +27,12 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 _APP_NAME = "bizman"
+# Pre-2026-09-15 versions of this module registered one whole-host route under this @id -
+# deleted (best-effort) on every startup so a stale route from an old build never lingers
+# alongside the two below once an app has been re-registered under the new scheme.
+_LEGACY_ROUTE_ID = f"app-{_APP_NAME}"
+_API_ROUTE_ID = f"app-{_APP_NAME}-api"
+_APP_ROUTE_ID = f"app-{_APP_NAME}-app"
 
 # ai: claude-sonnet-5 | 2026-09-12
 # Sibling shared-infra repo (F:\Evan-F\Projects\infra), same pattern used by other local
@@ -39,27 +45,59 @@ except ImportError:
     _caddy_registry = None
 
 
-# ai: claude-sonnet-5 | 2026-09-12
+# ai: claude-sonnet-5 | 2026-09-15
 def register_with_caddy() -> None:
-    """Best-effort: makes the backend reachable at http://bizman.localhost during local dev.
+    """Best-effort: makes the backend and (once it exists) the frontend reachable under one
+    name, http://bizman.localhost, via a path-based split - /api/* to the backend
+    (settings.backend_port), everything else to the frontend dev server (settings.frontend_port).
+    Both ports must match what uvicorn/the frontend dev server actually bind (see AGENTS.md) -
+    nothing here can detect a mismatch automatically, since those processes have already bound
+    their ports before this (lifespan startup) runs.
 
-    settings.port must match the --port passed on the uvicorn command line (see AGENTS.md) —
-    nothing here can detect a mismatch automatically, since uvicorn has already bound the
-    port before this (lifespan startup) runs.
+    Registration order matters: the /api/* route must be added before the catch-all app route,
+    or the catch-all would shadow it. Both are registered here, from the backend's own startup,
+    rather than split across two processes racing to register first.
     """
     if _caddy_registry is None:
         return
-    if not _caddy_registry.register(_APP_NAME, settings.port):
+
+    _caddy_registry.delete_route(_LEGACY_ROUTE_ID)
+
+    api_route = {
+        "@id": _API_ROUTE_ID,
+        "match": [{"host": [f"{_APP_NAME}.localhost"], "path": ["/api", "/api/*"]}],
+        "handle": [
+            {
+                "handler": "reverse_proxy",
+                "upstreams": [{"dial": f"host.docker.internal:{settings.backend_port}"}],
+            }
+        ],
+    }
+    app_route = {
+        "@id": _APP_ROUTE_ID,
+        "match": [{"host": [f"{_APP_NAME}.localhost"]}],
+        "handle": [
+            {
+                "handler": "reverse_proxy",
+                "upstreams": [{"dial": f"host.docker.internal:{settings.frontend_port}"}],
+            }
+        ],
+    }
+
+    api_ok = _caddy_registry.register_route(api_route)
+    app_ok = _caddy_registry.register_route(app_route)
+    if not (api_ok and app_ok):
         logger.warning(
             "Caddy registration failed - http://%s.localhost will not work; use "
             "http://127.0.0.1:%d directly, or start the infra stack "
             "(cd ../infra && docker-compose up -d).",
             _APP_NAME,
-            settings.port,
+            settings.backend_port,
         )
 
 
-# ai: claude-sonnet-5 | 2026-09-12
+# ai: claude-sonnet-5 | 2026-09-15
 def deregister_from_caddy() -> None:
     if _caddy_registry is not None:
-        _caddy_registry.deregister(_APP_NAME)
+        _caddy_registry.delete_route(_API_ROUTE_ID)
+        _caddy_registry.delete_route(_APP_ROUTE_ID)

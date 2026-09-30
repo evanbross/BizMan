@@ -36,10 +36,14 @@ class Settings(BaseSettings):
     environment: str = "local"
     log_level: str = "INFO"
 
-    # Single source of truth for the local dev bind port: the `--port` passed to uvicorn on the
-    # documented run command (see AGENTS.md) must match this, since it's also what
-    # core/caddy.py registers with the local Caddy proxy for http://bizman.localhost.
-    port: int = 8000
+    # Single source of truth for both local dev bind ports - the `--port` passed to uvicorn (see
+    # AGENTS.md) must match backend_port, and the frontend dev server must bind frontend_port,
+    # since core/caddy.py registers both with the local Caddy proxy as one named
+    # http://bizman.localhost host (path-split: /api/* -> backend, /* -> frontend). Deliberately
+    # not 8000/5173 (FastAPI's/Vite's own defaults) - those are already claimed by other locally
+    # running sibling projects (see AGENTS.md "Local Caddy registration").
+    backend_port: int = 8610
+    frontend_port: int = 8611
 
     database_url: str
     supabase_url: str
