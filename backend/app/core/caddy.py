@@ -19,8 +19,6 @@
 # =============================================================================
 
 import logging
-import sys
-from pathlib import Path
 
 from app.core.config import settings
 
@@ -34,13 +32,13 @@ _LEGACY_ROUTE_ID = f"app-{_APP_NAME}"
 _API_ROUTE_ID = f"app-{_APP_NAME}-api"
 _APP_ROUTE_ID = f"app-{_APP_NAME}-app"
 
-# ai: claude-sonnet-5 | 2026-09-12
-# Sibling shared-infra repo (F:\Evan-F\Projects\infra), same pattern used by other local
-# projects (e.g. JobHuntAssistant/app.py). Guarded import: this is a dev-convenience only,
-# never a hard dependency — the app must run fine with ../infra absent or Caddy stopped.
-sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "infra"))
+# ai: claude-opus-5-5 | 2026-11-12
+# Shared dev-Caddy client from the zt-devkit package (../infra/devkit), installed as an
+# editable *dev* dependency by `uv sync`. Guarded import: this is a dev-convenience only,
+# never a runtime dependency — the app must run fine without it (e.g. a --no-dev install)
+# or with Caddy stopped.
 try:
-    import caddy_registry as _caddy_registry
+    from zt_devkit import caddy_registry as _caddy_registry
 except ImportError:
     _caddy_registry = None
 
