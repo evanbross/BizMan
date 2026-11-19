@@ -98,8 +98,8 @@ startup via `backend/app/core/caddy.py`, giving the whole app one name — **htt
 
 Both routes are registered together from the backend's own startup (order matters — `/api/*` must
 be added before the catch-all, or the catch-all shadows it), matching the pattern used by sibling
-local projects (see `register_route()` in the zt-devkit package, `../infra/devkit`, installed as a dev dependency). Best-effort only: if
-`../infra` isn't checked out (install with `uv sync --no-group devkit`) or its Caddy container isn't running, the app logs a warning and still
+local projects (see `register_route()` in the zt-common package, `../infra/zt-common`, a runtime dependency, so `../infra` must be checked out
+next to this repo for `uv sync` to work). Best-effort only: if its Caddy container isn't running, the app logs a warning and still
 works fine at `http://127.0.0.1:8610` directly. Start the shared stack with
 `cd ../infra && docker-compose up -d` if needed.
 

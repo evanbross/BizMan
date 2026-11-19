@@ -20,6 +20,8 @@
 
 import logging
 
+from zt_common import caddy_registry
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -31,16 +33,6 @@ _APP_NAME = "bizman"
 _LEGACY_ROUTE_ID = f"app-{_APP_NAME}"
 _API_ROUTE_ID = f"app-{_APP_NAME}-api"
 _APP_ROUTE_ID = f"app-{_APP_NAME}-app"
-
-# ai: claude-opus-5-5 | 2026-11-12
-# Shared dev-Caddy client from the zt-devkit package (../infra/devkit), installed as an
-# editable *dev* dependency by `uv sync`. Guarded import: this is a dev-convenience only,
-# never a runtime dependency — the app must run fine without it (e.g. a --no-dev install)
-# or with Caddy stopped.
-try:
-    from zt_devkit import caddy_registry as _caddy_registry
-except ImportError:
-    _caddy_registry = None
 
 
 # ai: claude-sonnet-5 | 2026-09-15
@@ -56,10 +48,7 @@ def register_with_caddy() -> None:
     or the catch-all would shadow it. Both are registered here, from the backend's own startup,
     rather than split across two processes racing to register first.
     """
-    if _caddy_registry is None:
-        return
-
-    _caddy_registry.delete_route(_LEGACY_ROUTE_ID)
+    caddy_registry.delete_route(_LEGACY_ROUTE_ID)  # ai: claude-opus-5-5 | 2026-11-19 -- zt-common is now required
 
     api_route = {
         "@id": _API_ROUTE_ID,
@@ -82,8 +71,8 @@ def register_with_caddy() -> None:
         ],
     }
 
-    api_ok = _caddy_registry.register_route(api_route)
-    app_ok = _caddy_registry.register_route(app_route)
+    api_ok = caddy_registry.register_route(api_route)
+    app_ok = caddy_registry.register_route(app_route)
     if not (api_ok and app_ok):
         logger.warning(
             "Caddy registration failed - http://%s.localhost will not work; use "
@@ -96,6 +85,5 @@ def register_with_caddy() -> None:
 
 # ai: claude-sonnet-5 | 2026-09-15
 def deregister_from_caddy() -> None:
-    if _caddy_registry is not None:
-        _caddy_registry.delete_route(_API_ROUTE_ID)
-        _caddy_registry.delete_route(_APP_ROUTE_ID)
+    caddy_registry.delete_route(_API_ROUTE_ID)  # ai: claude-opus-5-5 | 2026-11-19
+    caddy_registry.delete_route(_APP_ROUTE_ID)
